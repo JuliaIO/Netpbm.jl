@@ -1,3 +1,5 @@
+isdefined(Base, :__precompile__) && __precompile__()
+
 module Netpbm
 
 using Images, FileIO, ColorTypes, FixedPointNumbers, Compat
@@ -256,6 +258,7 @@ mybswap{T<:Ufixed}(c::AbstractRGB{T}) = RGB{T}(T(bswap(reinterpret(red(c))),0),
                                                T(bswap(reinterpret(blue(c))),0))
 
 # Netpbm mapinfo client. Converts to RGB and uses Ufixed.
+mapinfo{T<:Unsigned}(img::AbstractArray{T}) = MapNone{T}()
 mapinfo{T<:Ufixed}(img::AbstractArray{T}) = MapNone{T}()
 mapinfo{T<:AbstractFloat}(img::AbstractArray{T}) = MapNone{Ufixed8}()
 for ACV in (Color, AbstractRGB)
