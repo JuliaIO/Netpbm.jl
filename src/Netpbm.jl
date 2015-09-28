@@ -173,6 +173,10 @@ permutedims_horizontal(img) = permutedims(img, permutation_horizontal(img))
 # Write values in permuted order
 let method_cache = Dict()
 global writepermuted
+# Delete the following once img[i,j] returns the Color for an ImageCmap
+writepermuted(stream, img::ImageCmap, mapi::MapInfo, perm; gray2color::Bool = false) =
+    writepermuted(stream, convert(Image, img), mapi, perm; gray2color=gray2color)
+
 function writepermuted(stream, img, mapi::MapInfo, perm; gray2color::Bool = false)
     cd = colordim(img)
     key = (perm, cd, gray2color)
