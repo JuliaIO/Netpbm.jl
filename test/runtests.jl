@@ -8,7 +8,7 @@ facts("IO") do
 
     context("Gray pgm") do
         a = rand(2,3)
-        aa = convert(Array{Ufixed8}, a)
+        aa = convert(Array{U8}, a)
         fn = File(format"PGMBinary", joinpath(workdir, "3by2.pgm"))
         save(fn, a)
         b = load(fn)
@@ -19,7 +19,7 @@ facts("IO") do
         aaimg = Images.grayim(aa')
         b = load(fn)
         @fact b --> aaimg
-        aa = convert(Array{Ufixed16}, a)
+        aa = convert(Array{UFixed16}, a)
         save(fn, aa)
         b = load(fn)
         @fact convert(Array, b) --> aa
@@ -31,7 +31,7 @@ facts("IO") do
         img24 = convert(Images.Image{RGB24}, img)
         save(fn, img24)
         b = load(fn)
-        imgrgb8 = convert(Images.Image{RGB{Ufixed8}}, img)
+        imgrgb8 = convert(Images.Image{RGB{U8}}, img)
         @fact Images.data(imgrgb8) --> Images.data(b)
 
         bb = load(fn)
@@ -66,7 +66,7 @@ facts("IO") do
         save(fn, A, mapi=mapinfo(Clamp, A))
         B = load(fn)
         A[1,1] = 0
-        @fact B --> map(Gray{Ufixed8}, A)
+        @fact B --> map(Gray{U8}, A)
     end
 end
 FactCheck.exitstatus()
