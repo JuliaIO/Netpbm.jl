@@ -1,16 +1,16 @@
-isdefined(Base, :__precompile__) && __precompile__()
+__precompile__()
 
 module Netpbm
 
-using Images, FileIO, ColorTypes, FixedPointNumbers, Compat
+using Images, FileIO, ColorTypes, FixedPointNumbers
 typealias AbstractGray{T} Color{T, 1}
 
 import FileIO: load, save
 
 const is_little_endian = ENDIAN_BOM == 0x04030201
-const ufixedtype = @compat Dict(10=>Ufixed10, 12=>Ufixed12, 14=>Ufixed14, 16=>Ufixed16)
+const ufixedtype = Dict(10=>UFixed10, 12=>UFixed12, 14=>UFixed14, 16=>UFixed16)
 
-function load(f::@compat(Union{File{format"PBMBinary"},File{format"PGMBinary"},File{format"PPMBinary"}}))
+function load(f::Union{File{format"PBMBinary"},File{format"PGMBinary"},File{format"PPMBinary"}})
     open(f) do s
         skipmagic(s)
         load(s)
@@ -29,7 +29,7 @@ function load(s::Stream{format"PBMBinary"})
             dat[offset+k, irow] = (tmp>>>(8-k))&0x01
         end
     end
-    Image(dat, @compat Dict("spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
+    Image(dat, Dict("spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
 end
 
 function load(s::Stream{format"PGMBinary"})
@@ -38,7 +38,7 @@ function load(s::Stream{format"PGMBinary"})
     maxval = parse_netpbm_maxval(io)
     local dat
     if maxval <= 255
-        dat = reinterpret(Gray{Ufixed8}, read(io, Ufixed8, w, h), (w, h))
+        dat = reinterpret(Gray{U8}, read(io, U8, w, h), (w, h))
     elseif maxval <= typemax(UInt16)
         datraw = Array(UInt16, w, h)
         if !is_little_endian
@@ -50,14 +50,14 @@ function load(s::Stream{format"PGMBinary"})
                 datraw[indx] = bswap(read(io, UInt16))
             end
         end
-        # Determine the appropriate Ufixed type
+        # Determine the appropriate UFixed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
         dat = reinterpret(Gray{T}, datraw, (w, h))
     else
         error("Image file may be corrupt. Are there really more than 16 bits in this image?")
     end
     T = eltype(dat)
-    Image(dat, @compat Dict("colorspace" => "Gray", "spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
+    Image(dat, Dict("colorspace" => "Gray", "spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
 end
 
 function load(s::Stream{format"PPMBinary"})
@@ -66,10 +66,10 @@ function load(s::Stream{format"PPMBinary"})
     maxval = parse_netpbm_maxval(io)
     local dat
     if maxval <= 255
-        datraw = read(io, Ufixed8, 3, w, h)
-        dat = reinterpret(RGB{Ufixed8}, datraw, (w, h))
+        datraw = read(io, U8, 3, w, h)
+        dat = reinterpret(RGB{U8}, datraw, (w, h))
     elseif maxval <= typemax(UInt16)
-        # read first as UInt16 so the loop is type-stable, then convert to Ufixed
+        # read first as UInt16 so the loop is type-stable, then convert to UFixed
         datraw = Array(UInt16, 3, w, h)
         # there is no endian standard, but netpbm is big-endian
         if !is_little_endian
@@ -81,14 +81,14 @@ function load(s::Stream{format"PPMBinary"})
                 datraw[indx] = bswap(read(io, UInt16))
             end
         end
-        # Determine the appropriate Ufixed type
+        # Determine the appropriate UFixed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
         dat = reinterpret(RGB{T}, datraw, (w, h))
     else
         error("Image file may be corrupt. Are there really more than 16 bits in this image?")
     end
     T = eltype(dat)
-    Image(dat, @compat Dict("spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
+    Image(dat, Dict("spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
 end
 
 function save(filename::File{format"PGMBinary"}, img; kwargs...)
@@ -110,7 +110,7 @@ function save(filename::File{format"PPMBinary"}, img; kwargs...)
 end
 
 pnmmax{T<:AbstractFloat}(::Type{T}) = 255
-pnmmax{T<:Ufixed}(::Type{T}) = reinterpret(FixedPointNumbers.rawtype(T), one(T))
+pnmmax{T<:UFixed}(::Type{T}) = reinterpret(FixedPointNumbers.rawtype(T), one(T))
 pnmmax{T<:Unsigned}(::Type{T}) = typemax(T)
 
 function save{T<:Gray}(s::Stream{format"PGMBinary"}, img::AbstractArray{T}; mapi = mapinfo(img))
@@ -239,7 +239,7 @@ function parseints(line, n)
 
 end
 
-function Base.write{T<:Ufixed}(io::IO, c::AbstractRGB{T})
+function Base.write{T<:UFixed}(io::IO, c::AbstractRGB{T})
     write(io, reinterpret(red(c)))
     write(io, reinterpret(green(c)))
     write(io, reinterpret(blue(c)))
@@ -252,27 +252,27 @@ function Base.write(io::IO, c::RGB24)
 end
 
 Base.write(io::IO, c::Gray) = write(io, reinterpret(gray(c)))
-Base.write(io::IO, c::Ufixed) = write(io, reinterpret(c))
+Base.write(io::IO, c::UFixed) = write(io, reinterpret(c))
 
 mybswap(i::Integer) = bswap(i)
-mybswap(i::Ufixed) = bswap(reinterpret(i))
+mybswap(i::UFixed) = bswap(reinterpret(i))
 mybswap(c::RGB24) = c
-mybswap{T<:Ufixed}(c::AbstractRGB{T}) = RGB{T}(T(bswap(reinterpret(red(c))),0),
+mybswap{T<:UFixed}(c::AbstractRGB{T}) = RGB{T}(T(bswap(reinterpret(red(c))),0),
                                                T(bswap(reinterpret(green(c))),0),
                                                T(bswap(reinterpret(blue(c))),0))
 
-# Netpbm mapinfo client. Converts to RGB and uses Ufixed.
+# Netpbm mapinfo client. Converts to RGB and uses UFixed.
 mapinfo{T<:Unsigned}(img::AbstractArray{T}) = MapNone{T}()
-mapinfo{T<:Ufixed}(img::AbstractArray{T}) = MapNone{T}()
-mapinfo{T<:AbstractFloat}(img::AbstractArray{T}) = MapNone{Ufixed8}()
+mapinfo{T<:UFixed}(img::AbstractArray{T}) = MapNone{T}()
+mapinfo{T<:AbstractFloat}(img::AbstractArray{T}) = MapNone{U8}()
 for ACV in (Color, AbstractRGB)
     for CV in subtypes(ACV)
         (length(CV.parameters) == 1 && !(CV.abstract)) || continue
         CVnew = CV<:AbstractGray ? Gray : RGB
-        @eval mapinfo{T<:Ufixed}(img::AbstractArray{$CV{T}}) = MapNone{$CVnew{T}}()
-        @eval mapinfo{CV<:$CV}(img::AbstractArray{CV}) = MapNone{$CVnew{Ufixed8}}()
+        @eval mapinfo{T<:UFixed}(img::AbstractArray{$CV{T}}) = MapNone{$CVnew{T}}()
+        @eval mapinfo{CV<:$CV}(img::AbstractArray{CV}) = MapNone{$CVnew{U8}}()
     end
 end
-mapinfo(img::AbstractArray{RGB24}) = MapNone{RGB{Ufixed8}}()
+mapinfo(img::AbstractArray{RGB24}) = MapNone{RGB{U8}}()
 
 end # module
