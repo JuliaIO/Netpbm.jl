@@ -4,10 +4,11 @@ os:
   - linux
   - osx
 julia:
-  - release
+  - 0.4
+  - 0.5
   - nightly
 notifications:
   email: false
-script:
- - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
- - julia -e 'Pkg.clone(pwd()); Pkg.build("Netpbm"); Pkg.test("Netpbm"; coverage=true)'
+#script:
+# - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+# - julia -e 'Pkg.clone(pwd()); Pkg.build("Netpbm"); Pkg.test("Netpbm"; coverage=true)'
