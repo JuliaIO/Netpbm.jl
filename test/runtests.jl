@@ -62,7 +62,7 @@ facts("IO") do
         A = grayim(rand(2,3))
         A[1,1] = -0.4
         fn = File(format"PGMBinary", joinpath(workdir, "2by3.pgm"))
-        @fact_throws InexactError save(fn, A)
+        @fact_throws ArgumentError save(fn, A)
         save(fn, A, mapi=mapinfo(Clamp, A))
         B = load(fn)
         A[1,1] = 0
