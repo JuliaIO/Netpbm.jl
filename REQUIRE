@@ -1,4 +1,6 @@
-julia 0.4
+julia 0.5
 FixedPointNumbers 0.1.8
-Images
+Colors
+ColorVectorSpace
 FileIO
+ImageCore
