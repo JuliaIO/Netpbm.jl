@@ -28,8 +28,7 @@ function load(s::Stream{format"PBMBinary"})
             dat[offset+k, irow] = (tmp>>>(8-k))&0x01
         end
     end
-    # permuteddimsview(dat, (2,1))
-    Base.PermutedDimsArrays.PermutedDimsArray(A, (2,1))
+    permuteddimsview(dat, (2,1))
 end
 
 function load(s::Stream{format"PGMBinary"})
@@ -88,27 +87,32 @@ end
     dat
 end
 
-function save(filename::File{format"PGMBinary"}, img; mapi=identity )
+function save(filename::File{format"PGMBinary"}, img; mapf=identity, mapi=nothing)
+    mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P5\n")
         write(io, "# pgm file written by Julia\n")
-        save(s, img, mapi=mapi)
+        save(s, img, mapf=mapf)
     end
 end
 
-function save(filename::File{format"PPMBinary"}, img; mapi=identity)
+function save(filename::File{format"PPMBinary"}, img; mapf=identity, mapi=nothing)
+    mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P6\n")
         write(io, "# ppm file written by Julia\n")
-        save(s, img, mapi=mapi)
+        save(s, img, mapf=mapf)
     end
 end
 
-save(s::Stream, img::AbstractMatrix; mapi=identity) = save(s, img, mapi)
+function save(s::Stream, img::AbstractMatrix; mapf=identity, mapi=nothing)
+    mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    save(s, img, mapf)
+end
 
-@noinline function save{T<:Union{Gray,Number}}(s::Stream{format"PGMBinary"}, img::AbstractMatrix{T}, mapi)
+@noinline function save{T<:Union{Gray,Number}}(s::Stream{format"PGMBinary"}, img::AbstractMatrix{T}, mapf)
     h, w = size(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
@@ -116,12 +120,12 @@ save(s::Stream, img::AbstractMatrix; mapi=identity) = save(s, img, mapi)
     end
     write(s, "$w $h\n$mx\n")
     for i = 1:h, j = 1:w  # s is stored in row-major format
-        write(s, default_swap(round(Tout, mx*gray(mapi(img[i,j])))))
+        write(s, default_swap(round(Tout, mx*gray(mapf(img[i,j])))))
     end
     nothing
 end
 
-@noinline function save{T<:Color}(s::Stream{format"PPMBinary"}, img::AbstractMatrix{T}, mapi)
+@noinline function save{T<:Color}(s::Stream{format"PPMBinary"}, img::AbstractMatrix{T}, mapf)
     h, w = size(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
@@ -129,7 +133,7 @@ end
     end
     write(s, "$w $h\n$mx\n")
     for i = 1:h, j = 1:w  # io is stored row-major, color-first
-        c = RGB(mapi(img[i,j]))
+        c = RGB(mapf(img[i,j]))
         write(s, default_swap(round(Tout, mx*red(c))))
         write(s, default_swap(round(Tout, mx*green(c))))
         write(s, default_swap(round(Tout, mx*blue(c))))
@@ -193,5 +197,13 @@ mybswap(c::Colorant) = mapc(bswap, c)
 mybswap(c::RGB24) = c
 
 const default_swap = is_little_endian ? mybswap : identity
+
+function kwrename(newname, newval, oldname, oldval, caller::Symbol)
+    if oldval !== nothing
+        Base.depwarn("keyword $oldname has been renamed $newname", caller)
+        return oldval
+    end
+    newval
+end
 
 end # module

@@ -80,7 +80,7 @@ using Base.Test
         A[1,1] = -0.4
         fn = File(format"PGMBinary", joinpath(workdir, "2by3.pgm"))
         @test_throws InexactError Netpbm.save(fn, A)
-        Netpbm.save(fn, A, mapi=clamp01nan)
+        Netpbm.save(fn, A, mapf=clamp01nan)
         B = Netpbm.load(fn)
         A[1,1] = 0
         @test B == Gray{U8}.(A)
