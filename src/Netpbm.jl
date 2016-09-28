@@ -2,11 +2,10 @@ __precompile__()
 
 module Netpbm
 
-using Images, FileIO, ColorTypes, FixedPointNumbers
+using FileIO, FixedPointNumbers, Colors, ColorVectorSpace, ImageCore
 typealias AbstractGray{T} Color{T, 1}
 
-import FileIO: load, save
-
+# Note: there is no endian standard, but netpbm is big-endian
 const is_little_endian = ENDIAN_BOM == 0x04030201
 const ufixedtype = Dict(10=>UFixed10, 12=>UFixed12, 14=>UFixed14, 16=>UFixed16)
 
@@ -29,35 +28,27 @@ function load(s::Stream{format"PBMBinary"})
             dat[offset+k, irow] = (tmp>>>(8-k))&0x01
         end
     end
-    Image(dat, Dict("spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
+    # permuteddimsview(dat, (2,1))
+    Base.PermutedDimsArrays.PermutedDimsArray(A, (2,1))
 end
 
 function load(s::Stream{format"PGMBinary"})
     io = stream(s)
     w, h = parse_netpbm_size(io)
     maxval = parse_netpbm_maxval(io)
-    local dat
     if maxval <= 255
-        dat = reinterpret(Gray{U8}, read(io, U8, w, h), (w, h))
+        dat8 = Array{UInt8}(h, w)
+        readio!(io, dat8)
+        return reinterpret(Gray{U8}, dat8)
     elseif maxval <= typemax(UInt16)
-        datraw = Array(UInt16, w, h)
-        if !is_little_endian
-            for indx = 1:w*h
-                datraw[indx] = read(io, UInt16)
-            end
-        else
-            for indx = 1:w*h
-                datraw[indx] = bswap(read(io, UInt16))
-            end
-        end
+        datraw = Array(UInt16, h, w)
+        readio!(io, datraw)
         # Determine the appropriate UFixed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
-        dat = reinterpret(Gray{T}, datraw, (w, h))
+        return reinterpret(Gray{T}, datraw)
     else
         error("Image file may be corrupt. Are there really more than 16 bits in this image?")
     end
-    T = eltype(dat)
-    Image(dat, Dict("colorspace" => "Gray", "spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
 end
 
 function load(s::Stream{format"PPMBinary"})
@@ -66,145 +57,84 @@ function load(s::Stream{format"PPMBinary"})
     maxval = parse_netpbm_maxval(io)
     local dat
     if maxval <= 255
-        datraw = read(io, U8, 3, w, h)
-        dat = reinterpret(RGB{U8}, datraw, (w, h))
+        dat8 = Array{UInt8}(3, h, w)
+        readio!(io, dat8)
+        return reinterpret(RGB{U8}, dat8)
     elseif maxval <= typemax(UInt16)
-        # read first as UInt16 so the loop is type-stable, then convert to UFixed
-        datraw = Array(UInt16, 3, w, h)
-        # there is no endian standard, but netpbm is big-endian
-        if !is_little_endian
-            for indx = 1:3*w*h
-                datraw[indx] = read(io, UInt16)
-            end
-        else
-            for indx = 1:3*w*h
-                datraw[indx] = bswap(read(io, UInt16))
-            end
-        end
+        datraw = Array(UInt16, 3, h, w)
+        readio!(io, datraw)
         # Determine the appropriate UFixed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
-        dat = reinterpret(RGB{T}, datraw, (w, h))
+        return reinterpret(RGB{T}, datraw)
     else
         error("Image file may be corrupt. Are there really more than 16 bits in this image?")
     end
-    T = eltype(dat)
-    Image(dat, Dict("spatialorder" => ["x", "y"], "pixelspacing" => [1,1]))
 end
 
-function save(filename::File{format"PGMBinary"}, img; kwargs...)
+@noinline function readio!{T}(io, dat::AbstractMatrix{T})
+    h, w = size(dat)
+    for i = 1:h, j = 1:w  # io is stored in row-major format
+        dat[i,j] = default_swap(read(io, T))
+    end
+    dat
+end
+
+@noinline function readio!{T}(io, dat::AbstractArray{T,3})
+    size(dat, 1) == 3 || throw(DimensionMismatch("must be of size 3 in first dimension, got $(size(dat, 1))"))
+    h, w = size(dat, 2), size(dat, 3)
+    for i = 1:h, j = 1:w, k = 1:3  # io is stored row-major, color-first
+        dat[k,i,j] = default_swap(read(io, T))
+    end
+    dat
+end
+
+function save(filename::File{format"PGMBinary"}, img; mapi=identity )
     open(filename, "w") do s
         io = stream(s)
         write(io, "P5\n")
         write(io, "# pgm file written by Julia\n")
-        save(s, img; kwargs...)
+        save(s, img, mapi=mapi)
     end
 end
 
-function save(filename::File{format"PPMBinary"}, img; kwargs...)
+function save(filename::File{format"PPMBinary"}, img; mapi=identity)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P6\n")
         write(io, "# ppm file written by Julia\n")
-        save(s, img; kwargs...)
+        save(s, img, mapi=mapi)
     end
 end
 
-pnmmax{T<:AbstractFloat}(::Type{T}) = 255
-pnmmax{T<:UFixed}(::Type{T}) = reinterpret(FixedPointNumbers.rawtype(T), one(T))
-pnmmax{T<:Unsigned}(::Type{T}) = typemax(T)
+save(s::Stream, img::AbstractMatrix; mapi=identity) = save(s, img, mapi)
 
-function save{T<:Gray}(s::Stream{format"PGMBinary"}, img::AbstractArray{T}; mapi = mapinfo(img))
-    w, h = widthheight(img)
-    TE = eltype(T)
-    mx = pnmmax(TE)
+@noinline function save{T<:Union{Gray,Number}}(s::Stream{format"PGMBinary"}, img::AbstractMatrix{T}, mapi)
+    h, w = size(img)
+    Tout, mx = pnmmax(img)
+    if sizeof(Tout) > 2
+        error("element type $Tout (from $T) not supported")
+    end
     write(s, "$w $h\n$mx\n")
-    p = permutation_horizontal(img)
-    writepermuted(s, img, mapi, p)
-end
-
-function save{T<:Number}(s::Stream{format"PGMBinary"}, img::AbstractArray{T}; mapi = mapinfo(img))
-    io = stream(s)
-    w, h = widthheight(img)
-    cs = colorspace(img)
-    cs == "Gray" || error("colorspace $cs not supported")
-    mx = pnmmax(T)
-    write(io, "$w $h\n$mx\n")
-    p = permutation_horizontal(img)
-    writepermuted(io, img, mapi, p)
-end
-
-function save{T<:Color}(s::Stream{format"PPMBinary"}, img::AbstractArray{T}; mapi = mapinfo(img))
-    w, h = widthheight(img)
-    TE = eltype(eltype(mapi))
-    mx = pnmmax(TE)
-    write(s, "$w $h\n$mx\n")
-    p = permutation_horizontal(img)
-    writepermuted(s, img, mapi, p; gray2color = T <: AbstractGray)
-end
-
-function save{T}(s::Stream{format"PPMBinary"}, img::AbstractArray{T}; mapi = mapinfo(img))
-    io = stream(s)
-    w, h = widthheight(img)
-    cs = colorspace(img)
-    in(cs, ("RGB", "Gray")) || error("colorspace $cs not supported")
-    mx = pnmmax(T)
-    write(io, "$w $h\n$mx\n")
-    p = permutation_horizontal(img)
-    writepermuted(io, img, mapi, p; gray2color = cs == "Gray")
-end
-
-# Permute to a color, horizontal, vertical, ... storage order (with time always last)
-function permutation_horizontal(img)
-    cd = colordim(img)
-    td = timedim(img)
-    p = spatialpermutation(["x", "y"], img)
-    if cd != 0
-        p[p .>= cd] += 1
-        insert!(p, 1, cd)
+    for i = 1:h, j = 1:w  # s is stored in row-major format
+        write(s, default_swap(round(Tout, mx*gray(mapi(img[i,j])))))
     end
-    if td != 0
-        push!(p, td)
-    end
-    p
-end
-
-permutedims_horizontal(img) = permutedims(img, permutation_horizontal(img))
-
-# Write values in permuted order
-let method_cache = Dict()
-global writepermuted
-# Delete the following once img[i,j] returns the Color for an ImageCmap
-writepermuted(stream, img::ImageCmap, mapi::MapInfo, perm; gray2color::Bool = false) =
-    writepermuted(stream, convert(Image, img), mapi, perm; gray2color=gray2color)
-
-function writepermuted(stream, img, mapi::MapInfo, perm; gray2color::Bool = false)
-    cd = colordim(img)
-    key = (perm, cd, gray2color)
-    if !haskey(method_cache, key)
-        swapfunc = is_little_endian ? :mybswap : :identity
-        loopsyms = [symbol(string("i_",d)) for d = 1:ndims(img)]
-        body = gray2color ? quote
-                g = $swapfunc(map(mapi, img[$(loopsyms...)]))
-                write(stream, g)
-                write(stream, g)
-                write(stream, g)
-            end : quote
-                write(stream, $swapfunc(map(mapi, img[$(loopsyms...)])))
-            end
-        loopargs = [:($(loopsyms[d]) = 1:size(img, $d)) for d = 1:ndims(img)]
-        loopexpr = Expr(:for, Expr(:block, loopargs[perm[end:-1:1]]...), body)
-        f = @eval begin
-            local _writefunc_
-            function _writefunc_(stream, img, mapi)
-                $loopexpr
-            end
-        end
-    else
-        f = method_cache[key]
-    end
-    f(stream, img, mapi)
     nothing
 end
+
+@noinline function save{T<:Color}(s::Stream{format"PPMBinary"}, img::AbstractMatrix{T}, mapi)
+    h, w = size(img)
+    Tout, mx = pnmmax(img)
+    if sizeof(Tout) > 2
+        error("element type $Tout (from $T) not supported")
+    end
+    write(s, "$w $h\n$mx\n")
+    for i = 1:h, j = 1:w  # io is stored row-major, color-first
+        c = RGB(mapi(img[i,j]))
+        write(s, default_swap(round(Tout, mx*red(c))))
+        write(s, default_swap(round(Tout, mx*green(c))))
+        write(s, default_swap(round(Tout, mx*blue(c))))
+    end
+    nothing
 end
 
 function parse_netpbm_size(stream::IO)
@@ -239,40 +169,29 @@ function parseints(line, n)
 
 end
 
-function Base.write{T<:UFixed}(io::IO, c::AbstractRGB{T})
-    write(io, reinterpret(red(c)))
-    write(io, reinterpret(green(c)))
-    write(io, reinterpret(blue(c)))
-end
-
-function Base.write(io::IO, c::RGB24)
-    write(io, red(c))
-    write(io, green(c))
-    write(io, blue(c))
-end
-
-Base.write(io::IO, c::Gray) = write(io, reinterpret(gray(c)))
-Base.write(io::IO, c::UFixed) = write(io, reinterpret(c))
-
-mybswap(i::Integer) = bswap(i)
-mybswap(i::UFixed) = bswap(reinterpret(i))
-mybswap(c::RGB24) = c
-mybswap{T<:UFixed}(c::AbstractRGB{T}) = RGB{T}(T(bswap(reinterpret(red(c))),0),
-                                               T(bswap(reinterpret(green(c))),0),
-                                               T(bswap(reinterpret(blue(c))),0))
-
-# Netpbm mapinfo client. Converts to RGB and uses UFixed.
-mapinfo{T<:Unsigned}(img::AbstractArray{T}) = MapNone{T}()
-mapinfo{T<:UFixed}(img::AbstractArray{T}) = MapNone{T}()
-mapinfo{T<:AbstractFloat}(img::AbstractArray{T}) = MapNone{U8}()
-for ACV in (Color, AbstractRGB)
-    for CV in subtypes(ACV)
-        (length(CV.parameters) == 1 && !(CV.abstract)) || continue
-        CVnew = CV<:AbstractGray ? Gray : RGB
-        @eval mapinfo{T<:UFixed}(img::AbstractArray{$CV{T}}) = MapNone{$CVnew{T}}()
-        @eval mapinfo{CV<:$CV}(img::AbstractArray{CV}) = MapNone{$CVnew{U8}}()
+function pnmmax{T}(img::AbstractArray{T})
+    if isleaftype(T)
+        return pnmmax(eltype(T))
     end
+    # Determine the concrete type that can hold all the elements
+    S = typeof(first(img))
+    for val in img
+        S = promote_type(S, typeof(val))
+    end
+    pnmmax(eltype(S))
 end
-mapinfo(img::AbstractArray{RGB24}) = MapNone{RGB{U8}}()
+
+pnmmax{T<:AbstractFloat}(::Type{T}) = UInt8, 255
+function pnmmax{U<:UFixed}(::Type{U})
+    FixedPointNumbers.rawtype(U), reinterpret(one(U))
+end
+pnmmax{T<:Unsigned}(::Type{T}) = T, typemax(T)
+
+mybswap(i::Integer)  = bswap(i)
+mybswap(i::UFixed)   = bswap(i)
+mybswap(c::Colorant) = mapc(bswap, c)
+mybswap(c::RGB24) = c
+
+const default_swap = is_little_endian ? mybswap : identity
 
 end # module
