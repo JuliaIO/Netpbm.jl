@@ -7,7 +7,7 @@ typealias AbstractGray{T} Color{T, 1}
 
 # Note: there is no endian standard, but netpbm is big-endian
 const is_little_endian = ENDIAN_BOM == 0x04030201
-const ufixedtype = Dict(10=>UFixed10, 12=>UFixed12, 14=>UFixed14, 16=>UFixed16)
+const ufixedtype = Dict(10=>N6f10, 12=>N4f12, 14=>N2f14, 16=>N0f16)
 
 function load(f::Union{File{format"PBMBinary"},File{format"PGMBinary"},File{format"PPMBinary"}})
     open(f) do s
@@ -38,11 +38,11 @@ function load(s::Stream{format"PGMBinary"})
     if maxval <= 255
         dat8 = Array{UInt8}(h, w)
         readio!(io, dat8)
-        return reinterpret(Gray{U8}, dat8)
+        return reinterpret(Gray{N0f8}, dat8)
     elseif maxval <= typemax(UInt16)
         datraw = Array(UInt16, h, w)
         readio!(io, datraw)
-        # Determine the appropriate UFixed type
+        # Determine the appropriate Normed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
         return reinterpret(Gray{T}, datraw)
     else
@@ -58,11 +58,11 @@ function load(s::Stream{format"PPMBinary"})
     if maxval <= 255
         dat8 = Array{UInt8}(3, h, w)
         readio!(io, dat8)
-        return reinterpret(RGB{U8}, dat8)
+        return reinterpret(RGB{N0f8}, dat8)
     elseif maxval <= typemax(UInt16)
         datraw = Array(UInt16, 3, h, w)
         readio!(io, datraw)
-        # Determine the appropriate UFixed type
+        # Determine the appropriate Normed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
         return reinterpret(RGB{T}, datraw)
     else
@@ -186,13 +186,13 @@ function pnmmax{T}(img::AbstractArray{T})
 end
 
 pnmmax{T<:AbstractFloat}(::Type{T}) = UInt8, 255
-function pnmmax{U<:UFixed}(::Type{U})
+function pnmmax{U<:Normed}(::Type{U})
     FixedPointNumbers.rawtype(U), reinterpret(one(U))
 end
 pnmmax{T<:Unsigned}(::Type{T}) = T, typemax(T)
 
 mybswap(i::Integer)  = bswap(i)
-mybswap(i::UFixed)   = bswap(i)
+mybswap(i::Normed)   = bswap(i)
 mybswap(c::Colorant) = mapc(bswap, c)
 mybswap(c::RGB24) = c
 

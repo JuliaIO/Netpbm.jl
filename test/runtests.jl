@@ -8,15 +8,15 @@ using Base.Test
 
     @testset "Gray pgm" begin
         af = rand(2, 3)
-        for T in (UFixed8, UFixed12, UFixed16,
-                  Gray{UFixed8}, Gray{UFixed12}, Gray{UFixed16})
+        for T in (N0f8, N4f12, N0f16,
+                  Gray{N0f8}, Gray{N4f12}, Gray{N0f16})
             ac = convert(Array{T}, af)
             fn = File(format"PGMBinary", joinpath(workdir, "3by2.pgm"))
             Netpbm.save(fn, ac)
             b = Netpbm.load(fn)
             @test b == ac
         end
-        a8 = convert(Array{U8}, af)
+        a8 = convert(Array{N0f8}, af)
         for T in (Float32, Float64, Gray{Float32}, Gray{Float64})
             ac = convert(Array{T}, af)
             fn = File(format"PGMBinary", joinpath(workdir, "3by2.pgm"))
@@ -28,14 +28,14 @@ using Base.Test
 
     @testset "Color ppm" begin
         af = rand(RGB{Float64}, 2, 3)
-        for T in (RGB{UFixed8}, RGB{UFixed12}, RGB{UFixed16})
+        for T in (RGB{N0f8}, RGB{N4f12}, RGB{N0f16})
             ac = convert(Array{T}, af)
             fn = File(format"PPMBinary", joinpath(workdir, "3by2.ppm"))
             Netpbm.save(fn, ac)
             b = Netpbm.load(fn)
             @test b == ac
         end
-        a8 = convert(Array{RGB{U8}}, af)
+        a8 = convert(Array{RGB{N0f8}}, af)
         for T in (RGB{Float32}, RGB{Float64}, HSV{Float64})
             ac = convert(Array{T}, af)
             fn = File(format"PPMBinary", joinpath(workdir, "3by2.ppm"))
@@ -52,7 +52,7 @@ using Base.Test
         b = RGB(0,0,1)
         w = RGB(1,1,1)
         r = RGB(1,0,0)
-        cmaprgb = Array(RGB{U8}, 255)
+        cmaprgb = Array(RGB{N0f8}, 255)
         f = linspace(0,1,128)
         cmaprgb[1:128] = [(1-x)*b + x*w for x in f]
         cmaprgb[129:end] = [(1-x)*w + x*r for x in f[2:end]]
@@ -63,11 +63,11 @@ using Base.Test
         @test imgr == img
         cmaprgb = Array(RGB, 255) # poorly-typed cmap, Images issue #336
         @test !isleaftype(eltype(cmaprgb))
-        cmaprgb[1:128] = RGB{UFixed16}[(1-x)*b + x*w for x in f]
-        cmaprgb[129:end] = RGB{UFixed12}[(1-x)*w + x*r for x in f[2:end]]
+        cmaprgb[1:128] = RGB{N0f16}[(1-x)*b + x*w for x in f]
+        cmaprgb[129:end] = RGB{N4f12}[(1-x)*w + x*r for x in f[2:end]]
         img = IndirectArray(dataint, cmaprgb)
         @test_throws ErrorException Netpbm.save(fn, img) # widens to unsupported type
-        cmaprgb[129:end] = RGB{U8}[(1-x)*w + x*r for x in f[2:end]]
+        cmaprgb[129:end] = RGB{N0f8}[(1-x)*w + x*r for x in f[2:end]]
         img = IndirectArray(dataint, cmaprgb)
         Netpbm.save(fn, img)
         imgr = Netpbm.load(fn)
@@ -83,7 +83,7 @@ using Base.Test
         Netpbm.save(fn, A, mapf=clamp01nan)
         B = Netpbm.load(fn)
         A[1,1] = 0
-        @test B == Gray{U8}.(A)
+        @test B == Gray{N0f8}.(A)
     end
 end
 
