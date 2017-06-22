@@ -2,8 +2,8 @@ __precompile__()
 
 module Netpbm
 
-using FileIO, FixedPointNumbers, Colors, ColorVectorSpace, ImageCore
-typealias AbstractGray{T} Color{T, 1}
+using FileIO, FixedPointNumbers, ColorTypes, ColorVectorSpace, ImageCore
+using ColorTypes: AbstractGray
 
 # Note: there is no endian standard, but netpbm is big-endian
 const is_little_endian = ENDIAN_BOM == 0x04030201
@@ -40,7 +40,7 @@ function load(s::Stream{format"PGMBinary"})
         readio!(io, dat8)
         return reinterpret(Gray{N0f8}, dat8)
     elseif maxval <= typemax(UInt16)
-        datraw = Array(UInt16, h, w)
+        datraw = Array{UInt16}(h, w)
         readio!(io, datraw)
         # Determine the appropriate Normed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
@@ -60,7 +60,7 @@ function load(s::Stream{format"PPMBinary"})
         readio!(io, dat8)
         return reinterpret(RGB{N0f8}, dat8)
     elseif maxval <= typemax(UInt16)
-        datraw = Array(UInt16, 3, h, w)
+        datraw = Array{UInt16}(3, h, w)
         readio!(io, datraw)
         # Determine the appropriate Normed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
@@ -156,7 +156,7 @@ function parse_netpbm_maxval(stream::IO)
 end
 
 function parseints(line, n)
-    ret = Array(Int, n)
+    ret = Vector{Int}(n)
     pos = 1
     for i = 1:n
         pos2 = search(line, ' ', pos)

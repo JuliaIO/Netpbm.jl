@@ -47,12 +47,12 @@ using Base.Test
 
     @testset "Colormap" begin
         datafloat = reshape(linspace(0.5, 1.5, 6), 2, 3)
-        dataint = round(UInt8, 254*(datafloat .- 0.5) .+ 1)  # ranges from 1 to 255
+        dataint = map(x->round(UInt8, x), 254*(datafloat .- 0.5) .+ 1) # ranges 1 to 255
         # build our colormap
         b = RGB(0,0,1)
         w = RGB(1,1,1)
         r = RGB(1,0,0)
-        cmaprgb = Array(RGB{N0f8}, 255)
+        cmaprgb = Array{RGB{N0f8}}(255)
         f = linspace(0,1,128)
         cmaprgb[1:128] = [(1-x)*b + x*w for x in f]
         cmaprgb[129:end] = [(1-x)*w + x*r for x in f[2:end]]
@@ -61,7 +61,7 @@ using Base.Test
         Netpbm.save(fn, img)
         imgr = Netpbm.load(fn)
         @test imgr == img
-        cmaprgb = Array(RGB, 255) # poorly-typed cmap, Images issue #336
+        cmaprgb = Array{RGB}(255) # poorly-typed cmap, Images issue #336
         @test !isleaftype(eltype(cmaprgb))
         cmaprgb[1:128] = RGB{N0f16}[(1-x)*b + x*w for x in f]
         cmaprgb[129:end] = RGB{N4f12}[(1-x)*w + x*r for x in f[2:end]]
