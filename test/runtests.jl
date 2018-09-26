@@ -1,5 +1,5 @@
 using Netpbm, ColorTypes, FixedPointNumbers, IndirectArrays, ImageCore, FileIO
-using Base.Test
+using Test
 
 @testset "IO" begin
     workdir = joinpath(tempdir(), "Images")
@@ -46,14 +46,14 @@ using Base.Test
     end
 
     @testset "Colormap" begin
-        datafloat = reshape(linspace(0.5, 1.5, 6), 2, 3)
+        datafloat = reshape(range(0.5, stop=1.5, length=6), 2, 3)
         dataint = map(x->round(UInt8, x), 254*(datafloat .- 0.5) .+ 1) # ranges 1 to 255
         # build our colormap
         b = RGB(0,0,1)
         w = RGB(1,1,1)
         r = RGB(1,0,0)
-        cmaprgb = Array{RGB{N0f8}}(255)
-        f = linspace(0,1,128)
+        cmaprgb = Array{RGB{N0f8}}(undef, 255)
+        f = range(0, stop=1, length=128)
         cmaprgb[1:128] = [(1-x)*b + x*w for x in f]
         cmaprgb[129:end] = [(1-x)*w + x*r for x in f[2:end]]
         img = IndirectArray(dataint, cmaprgb)
@@ -61,8 +61,8 @@ using Base.Test
         Netpbm.save(fn, img)
         imgr = Netpbm.load(fn)
         @test imgr == img
-        cmaprgb = Array{RGB}(255) # poorly-typed cmap, Images issue #336
-        @test !isleaftype(eltype(cmaprgb))
+        cmaprgb = Array{RGB}(undef, 255) # poorly-typed cmap, Images issue #336
+        @test !isconcretetype(eltype(cmaprgb))
         cmaprgb[1:128] = RGB{N0f16}[(1-x)*b + x*w for x in f]
         cmaprgb[129:end] = RGB{N4f12}[(1-x)*w + x*r for x in f[2:end]]
         img = IndirectArray(dataint, cmaprgb)
