@@ -1,5 +1,3 @@
-__precompile__()
-
 module Netpbm
 
 using FileIO, FixedPointNumbers, ColorTypes, ColorVectorSpace, ImageCore
