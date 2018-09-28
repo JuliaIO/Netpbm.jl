@@ -159,8 +159,8 @@ function parseints(line, n)
     ret = Vector{Int}(undef, n)
     pos = 1
     for i = 1:n
-        space = findnext(" ", line, pos)
-        pos2 = space === nothing ? length(line)+1 : space[1]
+        pos2 = findnext(isequal(' '), line, pos)
+        pos2 = pos2 === nothing ? length(line)+1 : pos2
         ret[i] = parse(Int, line[pos:pos2-1])
         pos = pos2+1
         if pos > length(line) && i < n
