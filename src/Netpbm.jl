@@ -36,11 +36,11 @@ function load(s::Stream{format"PGMBinary"})
     w, h = parse_netpbm_size(io)
     maxval = parse_netpbm_maxval(io)
     if maxval <= 255
-        dat8 = Array{UInt8}(h, w)
+        dat8 = Array{UInt8}(undef, h, w)
         readio!(io, dat8)
         return reinterpret(Gray{N0f8}, dat8)
     elseif maxval <= typemax(UInt16)
-        datraw = Array{UInt16}(h, w)
+        datraw = Array{UInt16}(undef, h, w)
         readio!(io, datraw)
         # Determine the appropriate Normed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
@@ -56,21 +56,21 @@ function load(s::Stream{format"PPMBinary"})
     maxval = parse_netpbm_maxval(io)
     local dat
     if maxval <= 255
-        dat8 = Array{UInt8}(3, h, w)
+        dat8 = Array{UInt8}(undef, 3, h, w)
         readio!(io, dat8)
-        return reinterpret(RGB{N0f8}, dat8)
+        return reshape(reinterpret(RGB{N0f8}, dat8), (h, w))
     elseif maxval <= typemax(UInt16)
-        datraw = Array{UInt16}(3, h, w)
+        datraw = Array{UInt16}(undef, 3, h, w)
         readio!(io, datraw)
         # Determine the appropriate Normed type
         T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
-        return reinterpret(RGB{T}, datraw)
+        return reshape(reinterpret(RGB{T}, datraw), (h, w))
     else
         error("Image file may be corrupt. Are there really more than 16 bits in this image?")
     end
 end
 
-@noinline function readio!{T}(io, dat::AbstractMatrix{T})
+@noinline function readio!(io, dat::AbstractMatrix{T}) where {T}
     h, w = size(dat)
     for i = 1:h, j = 1:w  # io is stored in row-major format
         dat[i,j] = default_swap(read(io, T))
@@ -78,7 +78,7 @@ end
     dat
 end
 
-@noinline function readio!{T}(io, dat::AbstractArray{T,3})
+@noinline function readio!(io, dat::AbstractArray{T,3}) where {T}
     size(dat, 1) == 3 || throw(DimensionMismatch("must be of size 3 in first dimension, got $(size(dat, 1))"))
     h, w = size(dat, 2), size(dat, 3)
     for i = 1:h, j = 1:w, k = 1:3  # io is stored row-major, color-first
@@ -112,7 +112,7 @@ function save(s::Stream, img::AbstractMatrix; mapf=identity, mapi=nothing)
     save(s, img, mapf)
 end
 
-@noinline function save{T<:Union{Gray,Number}}(s::Stream{format"PGMBinary"}, img::AbstractMatrix{T}, mapf)
+@noinline function save(s::Stream{format"PGMBinary"}, img::AbstractMatrix{T}, mapf) where {T<:Union{Gray,Number}}
     h, w = size(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
@@ -125,7 +125,7 @@ end
     nothing
 end
 
-@noinline function save{T<:Color}(s::Stream{format"PPMBinary"}, img::AbstractMatrix{T}, mapf)
+@noinline function save(s::Stream{format"PPMBinary"}, img::AbstractMatrix{T}, mapf) where {T<:Color}
     h, w = size(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
@@ -150,19 +150,17 @@ function parse_netpbm_size(stream::IO)
 end
 
 function parse_netpbm_maxval(stream::IO)
-    skipchars(stream, isspace, linecomment='#')
+    skipchars(isspace, stream, linecomment='#')
     maxvalline = strip(readline(stream))
     parse(Int, maxvalline)
 end
 
 function parseints(line, n)
-    ret = Vector{Int}(n)
+    ret = Vector{Int}(undef, n)
     pos = 1
     for i = 1:n
-        pos2 = search(line, ' ', pos)
-        if pos2 == 0
-            pos2 = length(line)+1
-        end
+        pos2 = findnext(isequal(' '), line, pos)
+        pos2 = pos2 === nothing ? length(line)+1 : pos2
         ret[i] = parse(Int, line[pos:pos2-1])
         pos = pos2+1
         if pos > length(line) && i < n
@@ -173,8 +171,8 @@ function parseints(line, n)
 
 end
 
-function pnmmax{T}(img::AbstractArray{T})
-    if isleaftype(T)
+function pnmmax(img::AbstractArray{T}) where {T}
+    if isconcretetype(T)
         return pnmmax(eltype(T))
     end
     # Determine the concrete type that can hold all the elements
@@ -185,11 +183,11 @@ function pnmmax{T}(img::AbstractArray{T})
     pnmmax(eltype(S))
 end
 
-pnmmax{T<:AbstractFloat}(::Type{T}) = UInt8, 255
-function pnmmax{U<:Normed}(::Type{U})
+pnmmax(::Type{T}) where {T<:AbstractFloat} = UInt8, 255
+function pnmmax(::Type{U}) where {U<:Normed}
     FixedPointNumbers.rawtype(U), reinterpret(one(U))
 end
-pnmmax{T<:Unsigned}(::Type{T}) = T, typemax(T)
+pnmmax(::Type{T}) where {T<:Unsigned} = T, typemax(T)
 
 mybswap(i::Integer)  = bswap(i)
 mybswap(i::Normed)   = bswap(i)
