@@ -140,33 +140,22 @@ end
 end
 
 function parse_netpbm_size(stream::IO)
-    szline = strip(readline(stream))
-    while isempty(szline) || szline[1] == '#'
-        szline = strip(readline(stream))
-    end
-    parseints(szline, 2)
+    (parsenextint(stream), parsenextint(stream))
 end
 
 function parse_netpbm_maxval(stream::IO)
-    skipchars(isspace, stream, linecomment='#')
-    maxvalline = strip(readline(stream))
-    parse(Int, maxvalline)
+    parsenextint(stream)
 end
 
-function parseints(line, n)
-    ret = Vector{Int}(undef, n)
-    pos = 1
-    for i = 1:n
-        pos2 = findnext(isequal(' '), line, pos)
-        pos2 = pos2 === nothing ? length(line)+1 : pos2
-        ret[i] = parse(Int, line[pos:pos2-1])
-        pos = pos2+1
-        if pos > length(line) && i < n
-            error("Line terminated without finding all ", n, " integers")
-        end
-    end
-    tuple(ret...)
-
+function parsenextint(stream::IO)
+    # ikirill: ugly, but I can't figure out a better way
+    skipchars(isspace, stream, linecomment='#')
+    from = position(stream)
+    mark(stream)
+    skipchars(isdigit, stream)
+    to = position(stream)
+    reset(stream)
+    parse(Int, String(read(stream, to-from+1)))
 end
 
 function pnmmax(img::AbstractArray{T}) where {T}
