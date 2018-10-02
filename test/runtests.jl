@@ -24,6 +24,9 @@ using Test
             b = Netpbm.load(fn)
             @test b == a8
         end
+
+        # Issue #11
+        @test_nowarn load("test_header_space.pgm")
     end
 
     @testset "Color ppm" begin
