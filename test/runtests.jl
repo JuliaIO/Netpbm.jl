@@ -1,4 +1,4 @@
-using Netpbm, ColorTypes, FixedPointNumbers, IndirectArrays, ImageCore, FileIO
+using Netpbm, IndirectArrays, ImageCore, FileIO
 using Test
 
 @testset "IO" begin
