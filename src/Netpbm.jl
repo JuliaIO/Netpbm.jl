@@ -16,7 +16,7 @@ end
 function load(s::Stream{format"PBMBinary"})
     io = stream(s)
     w, h = parse_netpbm_size(io)
-    dat = BitArray(w, h)
+    dat = BitArray(undef,w, h)
     nbytes_per_row = ceil(Int, w/8)
     for irow = 1:h, j = 1:nbytes_per_row
         tmp = read(io, UInt8)
@@ -25,7 +25,7 @@ function load(s::Stream{format"PBMBinary"})
             dat[offset+k, irow] = (tmp>>>(8-k))&0x01
         end
     end
-    permuteddimsview(dat, (2,1))
+    PermutedDimsArray(dat, (2,1))
 end
 
 function load(s::Stream{format"PGMBinary"})
@@ -84,6 +84,16 @@ end
     dat
 end
 
+function save(filename::File{format"PBMBinary"}, img; mapf=identity, mapi=nothing)
+    mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    open(filename, "w") do s
+        io = stream(s)
+        write(io, "P4\n")
+        write(io, "# pbm file written by Julia\n")
+        save(s, img, mapf=mapf)
+    end
+end
+
 function save(filename::File{format"PGMBinary"}, img; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
     open(filename, "w") do s
@@ -107,6 +117,26 @@ end
 function save(s::Stream, img::AbstractMatrix; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
     save(s, img, mapf)
+end
+
+@noinline function save(s::Stream{format"PBMBinary"}, img::AbstractMatrix{Bool}, mapf)
+    h, w = size(img)
+    write(s, "$w $h\n")
+    dat = PermutedDimsArray(img, (2,1))
+    nbytes_per_row = ceil(Int, w/8)
+    for irow = 1:h, j = 1:nbytes_per_row
+        tmp = 0
+        offset = (j-1)*8
+        for k = 1:min(8, w-offset)
+            #dat[offset+k, irow] = (tmp>>>(8-k))&0x01
+            tmp |= dat[offset+k, irow] << (8-k)
+        end
+        write(s, UInt8(tmp))
+    end
+    #for i = 1:h, j = 1:w  # s is stored in row-major format
+    #    write(s, default_swap(round(Tout, mx*gray(mapf(img[i,j])))))
+    #end
+    nothing
 end
 
 @noinline function save(s::Stream{format"PGMBinary"}, img::AbstractMatrix{T}, mapf) where {T<:Union{Gray,Number}}

@@ -6,6 +6,18 @@ using Test
     isdir(workdir) && rm(workdir, recursive=true)
     mkdir(workdir)
 
+    @testset "Bicolor pbm" begin
+        # 20 colums = 2.5 bytes
+        af = rand(0:1, 3, 20)
+        for T in (Bool, )
+            ac = convert(Array{T}, af)
+            fn = File(format"PBMBinary", joinpath(workdir, "3by2.pbm"))
+            Netpbm.save(fn, ac)
+            b = Netpbm.load(fn)
+            @test b == ac
+        end
+    end
+
     @testset "Gray pgm" begin
         af = rand(2, 3)
         for T in (N0f8, N4f12, N0f16,
