@@ -12,7 +12,7 @@ using Test
         for fmt in (format"PBMBinary", format"PBMText")
             for T in (Bool, Int)
                 ac = convert(Array{T}, af)
-                fn = File(fmt, joinpath(workdir, "3by2.pbm"))
+                fn = File(fmt, joinpath(workdir, "20by3.pbm"))
                 Netpbm.save(fn, ac)
                 b = Netpbm.load(fn)
                 @test b == ac
