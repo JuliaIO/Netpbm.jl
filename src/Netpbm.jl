@@ -13,6 +13,13 @@ function load(f::Union{File{format"PBMBinary"},File{format"PGMBinary"},File{form
     end
 end
 
+function load(f::Union{File{format"PBMText"},File{format"PGMText"},File{format"PPMText"}})
+    open(f) do s
+        skipmagic(s)
+        load(s)
+    end
+end
+
 function load(s::Stream{format"PBMBinary"})
     io = stream(s)
     w, h = parse_netpbm_size(io)
@@ -67,6 +74,54 @@ function load(s::Stream{format"PPMBinary"})
     end
 end
 
+function load(s::Stream{format"PBMText"})
+    io = stream(s)
+    w, h = parse_netpbm_size(io)
+    dat = BitArray(undef, h, w)
+    nbytes_per_row = ceil(Int, w/8)
+    readtextio!(io, dat)
+    return(dat)
+end
+
+function load(s::Stream{format"PGMText"})
+    io = stream(s)
+    w, h = parse_netpbm_size(io)
+    maxval = parse_netpbm_maxval(io)
+    if maxval <= 255
+        dat8 = Array{UInt8}(undef, h, w)
+        readtextio!(io, dat8)
+        return reinterpret(Gray{N0f8}, dat8)
+    elseif maxval <= typemax(UInt16)
+        datraw = Array{UInt16}(undef, h, w)
+        readtextio!(io, datraw)
+        # Determine the appropriate Normed type
+        T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
+        return reinterpret(Gray{T}, datraw)
+    else
+        error("Image file may be corrupt. Are there really more than 16 bits in this image?")
+    end
+end
+
+function load(s::Stream{format"PPMText"})
+    io = stream(s)
+    w, h = parse_netpbm_size(io)
+    maxval = parse_netpbm_maxval(io)
+    local dat
+    if maxval <= 255
+        dat8 = Array{UInt8}(undef, 3, h, w)
+        readtextio!(io, dat8)
+        return reshape(reinterpret(RGB{N0f8}, dat8), (h, w))
+    elseif maxval <= typemax(UInt16)
+        datraw = Array{UInt16}(undef, 3, h, w)
+        readtextio!(io, datraw)
+        # Determine the appropriate Normed type
+        T = ufixedtype[ceil(Int, log2(maxval)/2)<<1]
+        return reshape(reinterpret(RGB{T}, datraw), (h, w))
+    else
+        error("Image file may be corrupt. Are there really more than 16 bits in this image?")
+    end
+end
+
 @noinline function readio!(io, dat::AbstractMatrix{T}) where {T}
     h, w = size(dat)
     for i = 1:h, j = 1:w  # io is stored in row-major format
@@ -80,6 +135,23 @@ end
     h, w = size(dat, 2), size(dat, 3)
     for i = 1:h, j = 1:w, k = 1:3  # io is stored row-major, color-first
         dat[k,i,j] = default_swap(read(io, T))
+    end
+    dat
+end
+
+@noinline function readtextio!(io, dat::AbstractMatrix{T}) where {T}
+    h, w = size(dat)
+    for i = 1:h, j = 1:w  # io is stored in row-major format
+        dat[i,j] = parsenextint(io)
+    end
+    dat
+end
+
+@noinline function readtextio!(io, dat::AbstractArray{T,3}) where {T}
+    size(dat, 1) == 3 || throw(DimensionMismatch("must be of size 3 in first dimension, got $(size(dat, 1))"))
+    h, w = size(dat, 2), size(dat, 3)
+    for i = 1:h, j = 1:w, k = 1:3  # io is stored row-major, color-first
+        dat[k,i,j] = parsenextint(io)
     end
     dat
 end
@@ -114,28 +186,54 @@ function save(filename::File{format"PPMBinary"}, img; mapf=identity, mapi=nothin
     end
 end
 
+function save(filename::File{format"PBMText"}, img; mapf=identity, mapi=nothing)
+    mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    open(filename, "w") do s
+        io = stream(s)
+        write(io, "P1\n")
+        write(io, "# pbm file written by Julia\n")
+        save(s, img, mapf=mapf)
+    end
+end
+
+function save(filename::File{format"PGMText"}, img; mapf=identity, mapi=nothing)
+    mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    open(filename, "w") do s
+        io = stream(s)
+        write(io, "P2\n")
+        write(io, "# pgm file written by Julia\n")
+        save(s, img, mapf=mapf)
+    end
+end
+
+function save(filename::File{format"PPMText"}, img; mapf=identity, mapi=nothing)
+    mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    open(filename, "w") do s
+        io = stream(s)
+        write(io, "P3\n")
+        write(io, "# ppm file written by Julia\n")
+        save(s, img, mapf=mapf)
+    end
+end
+
 function save(s::Stream, img::AbstractMatrix; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
     save(s, img, mapf)
 end
 
-@noinline function save(s::Stream{format"PBMBinary"}, img::AbstractMatrix{Bool}, mapf)
+@noinline function save(s::Stream{format"PBMBinary"}, img::AbstractMatrix{T}, mapf) where {T<:Number}
     h, w = size(img)
     write(s, "$w $h\n")
     dat = PermutedDimsArray(img, (2,1))
     nbytes_per_row = ceil(Int, w/8)
     for irow = 1:h, j = 1:nbytes_per_row
-        tmp = 0
+        tmp = UInt8(0)
         offset = (j-1)*8
         for k = 1:min(8, w-offset)
-            #dat[offset+k, irow] = (tmp>>>(8-k))&0x01
-            tmp |= dat[offset+k, irow] << (8-k)
+            tmp |= round(UInt8, mapf(dat[offset+k, irow]) << (8-k))
         end
         write(s, UInt8(tmp))
     end
-    #for i = 1:h, j = 1:w  # s is stored in row-major format
-    #    write(s, default_swap(round(Tout, mx*gray(mapf(img[i,j])))))
-    #end
     nothing
 end
 
@@ -164,6 +262,86 @@ end
         write(s, default_swap(round(Tout, mx*red(c))))
         write(s, default_swap(round(Tout, mx*green(c))))
         write(s, default_swap(round(Tout, mx*blue(c))))
+    end
+    nothing
+end
+
+@noinline function save(s::Stream{format"PBMText"}, img::AbstractMatrix{T}, mapf) where {T<:Number}
+    h, w = size(img)
+    write(s, "$w $h\n")
+    linelen = 0
+    maxdigits = 1
+    for i = 1:h, j = 1:w  # s is stored in row-major format
+        if linelen + maxdigits + 1 > 70
+            write(s, "\n")
+            linelen = 0
+        elseif linelen > 0
+            write(s, " ")
+            linelen += 1
+        end
+        write(s, Bool(mapf(round(img[i,j]))) ? "1" : "0")
+        linelen += maxdigits
+        if j == w
+            write(s, "\n")
+            linelen = 0
+        end
+    end
+    nothing
+end
+
+@noinline function save(s::Stream{format"PGMText"}, img::AbstractMatrix{T}, mapf) where {T<:Union{Gray,Number}}
+    h, w = size(img)
+    Tout, mx = pnmmax(img)
+    if sizeof(Tout) > 2
+        error("element type $Tout (from $T) not supported")
+    end
+    write(s, "$w $h\n$mx\n")
+    linelen = 0
+    maxdigits = round(Int, log10(mx + 1), RoundUp)
+    for i = 1:h, j = 1:w  # s is stored in row-major format
+        value = round(Tout, mx*gray(mapf(img[i,j])))
+        if linelen + maxdigits + 1 > 70
+            write(s, "\n")
+            linelen = 0
+        elseif linelen > 0
+            write(s, " ")
+            linelen += 1
+        end
+        write(s, lpad("$(Int(value))", maxdigits))
+        linelen += maxdigits
+        if j == w
+            write(s, "\n")
+            linelen = 0
+        end
+    end
+    nothing
+end
+
+@noinline function save(s::Stream{format"PPMText"}, img::AbstractMatrix{T}, mapf) where {T<:Color}
+    h, w = size(img)
+    Tout, mx = pnmmax(img)
+    if sizeof(Tout) > 2
+        error("element type $Tout (from $T) not supported")
+    end
+    write(s, "$w $h\n$mx\n")
+    linelen = 0
+    maxdigits = round(Int, log10(mx + 1), RoundUp)
+    for i = 1:h, j = 1:w  # io is stored row-major, color-first
+        c = RGB(mapf(img[i,j]))
+        r,g,b = round.(Tout, mx.*(red(c),green(c),blue(c)))
+        if linelen + 3*maxdigits + 1 > 70
+            write(s, "\n")
+            linelen = 0
+        elseif linelen > 0
+            write(s, "  ")
+            linelen += 1
+        end
+        write(s, string(lpad("$(Int(r))", maxdigits), ' ', lpad("$(Int(g))", maxdigits), ' ', lpad("$(Int(b))", maxdigits)))
+        linelen += 2+3*maxdigits
+        if j == w
+            write(s, "\n")
+            linelen = 0
+        end
     end
     nothing
 end
