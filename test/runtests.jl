@@ -6,23 +6,41 @@ using Test
     isdir(workdir) && rm(workdir, recursive=true)
     mkdir(workdir)
 
+    @testset "Bicolor pbm" begin
+        # 20 colums = 2.5 bytes
+        af = rand(0:1, 3, 20)
+        for fmt in (format"PBMBinary", format"PBMText")
+            for T in (Bool, Int)
+                ac = convert(Array{T}, af)
+                fn = File(fmt, joinpath(workdir, "20by3.pbm"))
+                Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == ac
+            end
+        end
+    end
+
     @testset "Gray pgm" begin
         af = rand(2, 3)
-        for T in (N0f8, N4f12, N0f16,
-                  Gray{N0f8}, Gray{N4f12}, Gray{N0f16})
-            ac = convert(Array{T}, af)
-            fn = File(format"PGMBinary", joinpath(workdir, "3by2.pgm"))
-            Netpbm.save(fn, ac)
-            b = Netpbm.load(fn)
-            @test b == ac
+        for fmt in (format"PGMBinary", format"PGMText")
+            for T in (N0f8, N4f12, N0f16,
+                      Gray{N0f8}, Gray{N4f12}, Gray{N0f16})
+                ac = convert(Array{T}, af)
+                fn = File(fmt, joinpath(workdir, "3by2.pgm"))
+                Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == ac
+            end
         end
         a8 = convert(Array{N0f8}, af)
-        for T in (Float32, Float64, Gray{Float32}, Gray{Float64})
-            ac = convert(Array{T}, af)
-            fn = File(format"PGMBinary", joinpath(workdir, "3by2.pgm"))
-            Netpbm.save(fn, ac)
-            b = Netpbm.load(fn)
-            @test b == a8
+        for fmt in (format"PGMBinary", format"PGMText")
+            for T in (Float32, Float64, Gray{Float32}, Gray{Float64})
+                ac = convert(Array{T}, af)
+                fn = File(fmt, joinpath(workdir, "3by2.pgm"))
+                Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == a8
+            end
         end
 
         # Issue #11
@@ -31,20 +49,24 @@ using Test
 
     @testset "Color ppm" begin
         af = rand(RGB{Float64}, 2, 3)
-        for T in (RGB{N0f8}, RGB{N4f12}, RGB{N0f16})
-            ac = convert(Array{T}, af)
-            fn = File(format"PPMBinary", joinpath(workdir, "3by2.ppm"))
-            Netpbm.save(fn, ac)
-            b = Netpbm.load(fn)
-            @test b == ac
+        for fmt in (format"PPMBinary", format"PPMText")
+            for T in (RGB{N0f8}, RGB{N4f12}, RGB{N0f16})
+                ac = convert(Array{T}, af)
+                fn = File(fmt, joinpath(workdir, "3by2.ppm"))
+                Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == ac
+            end
         end
         a8 = convert(Array{RGB{N0f8}}, af)
-        for T in (RGB{Float32}, RGB{Float64}, HSV{Float64})
-            ac = convert(Array{T}, af)
-            fn = File(format"PPMBinary", joinpath(workdir, "3by2.ppm"))
-            Netpbm.save(fn, ac)
-            b = Netpbm.load(fn)
-            @test b == a8
+        for fmt in (format"PPMBinary", format"PPMText")
+            for T in (RGB{Float32}, RGB{Float64}, HSV{Float64})
+                ac = convert(Array{T}, af)
+                fn = File(fmt, joinpath(workdir, "3by2.ppm"))
+                Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == a8
+            end
         end
     end
 
