@@ -1,4 +1,4 @@
-using Netpbm, IndirectArrays, ImageCore, FileIO
+using Netpbm, IndirectArrays, ImageCore, FileIO, OffsetArrays
 using Test
 
 @testset "IO" begin
@@ -7,7 +7,7 @@ using Test
     mkdir(workdir)
 
     @testset "Bicolor pbm" begin
-        # 20 colums = 2.5 bytes
+        # 20 columns = 2.5 bytes
         af = rand(0:1, 3, 20)
         for fmt in (format"PBMBinary", format"PBMText")
             for T in (Bool, Int)
@@ -109,6 +109,26 @@ using Test
         B = Netpbm.load(fn)
         A[1,1] = 0
         @test B == Gray{N0f8}.(A)
+    end
+
+    @testset "OffsetArrays" begin
+        ac = OffsetArray(rand(Bool, 3, 20), -1:1, 0:19)
+        fn = File(format"PBMText", joinpath(workdir, "20by3.pbm"))
+        Netpbm.save(fn, ac)
+        b = Netpbm.load(fn)
+        @test b[1:end] == ac[1:end]
+
+        ac = OffsetArray(rand(Gray{N0f8}, 2, 3), 0:1, -1:1)
+        fn = File(format"PGMText", joinpath(workdir, "3by2.pgm"))
+        Netpbm.save(fn, ac)
+        b = Netpbm.load(fn)
+        @test b[1:end] == ac[1:end]
+
+        ac = OffsetArray(rand(RGB{N0f8}, 2, 3), 0:1, -1:1)
+        fn = File(format"PPMText", joinpath(workdir, "3by2.ppm"))
+        Netpbm.save(fn, ac)
+        b = Netpbm.load(fn)
+        @test b[1:end] == ac[1:end]
     end
 end
 

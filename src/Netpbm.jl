@@ -123,8 +123,8 @@ function load(s::Stream{format"PPMText"})
 end
 
 @noinline function readio!(io, dat::AbstractMatrix{T}) where {T}
-    h, w = size(dat)
-    for i = 1:h, j = 1:w  # io is stored in row-major format
+    axh, axw = axes(dat)
+    for i = axh, j = axw  # io is stored in row-major format
         dat[i,j] = default_swap(read(io, T))
     end
     dat
@@ -132,16 +132,16 @@ end
 
 @noinline function readio!(io, dat::AbstractArray{T,3}) where {T}
     size(dat, 1) == 3 || throw(DimensionMismatch("must be of size 3 in first dimension, got $(size(dat, 1))"))
-    h, w = size(dat, 2), size(dat, 3)
-    for i = 1:h, j = 1:w, k = 1:3  # io is stored row-major, color-first
+    axh, axw = axes(dat, 2), axes(dat, 3)
+    for i = axh, j = axw, k = 1:3  # io is stored row-major, color-first
         dat[k,i,j] = default_swap(read(io, T))
     end
     dat
 end
 
 @noinline function readtextio!(io, dat::AbstractMatrix{T}) where {T}
-    h, w = size(dat)
-    for i = 1:h, j = 1:w  # io is stored in row-major format
+    axh, axw = axes(dat)
+    for i = axh, j = axw  # io is stored in row-major format
         dat[i,j] = parsenextint(io)
     end
     dat
@@ -149,8 +149,8 @@ end
 
 @noinline function readtextio!(io, dat::AbstractArray{T,3}) where {T}
     size(dat, 1) == 3 || throw(DimensionMismatch("must be of size 3 in first dimension, got $(size(dat, 1))"))
-    h, w = size(dat, 2), size(dat, 3)
-    for i = 1:h, j = 1:w, k = 1:3  # io is stored row-major, color-first
+    axh, axw = axes(dat, 2), axes(dat, 3)
+    for i = axh, j = axw, k = 1:3  # io is stored row-major, color-first
         dat[k,i,j] = parsenextint(io)
     end
     dat
@@ -222,11 +222,12 @@ function save(s::Stream, img::AbstractMatrix; mapf=identity, mapi=nothing)
 end
 
 @noinline function save(s::Stream{format"PBMBinary"}, img::AbstractMatrix{T}, mapf) where {T<:Number}
-    h, w = size(img)
-    write(s, "$w $h\n")
+    axh, axw = axes(img)
+    w = length(axw)
+    write(s, "$(w) $(length(axh))\n")
     dat = PermutedDimsArray(img, (2,1))
     nbytes_per_row = ceil(Int, w/8)
-    for irow = 1:h, j = 1:nbytes_per_row
+    for irow = axh, j = 1:nbytes_per_row
         tmp = UInt8(0)
         offset = (j-1)*8
         for k = 1:min(8, w-offset)
@@ -238,26 +239,26 @@ end
 end
 
 @noinline function save(s::Stream{format"PGMBinary"}, img::AbstractMatrix{T}, mapf) where {T<:Union{Gray,Number}}
-    h, w = size(img)
+    axh, axw = axes(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
         error("element type $Tout (from $T) not supported")
     end
-    write(s, "$w $h\n$mx\n")
-    for i = 1:h, j = 1:w  # s is stored in row-major format
+    write(s, "$(length(axw)) $(length(axh))\n$mx\n")
+    for i = axh, j = axw  # s is stored in row-major format
         write(s, default_swap(round(Tout, mx*gray(mapf(img[i,j])))))
     end
     nothing
 end
 
 @noinline function save(s::Stream{format"PPMBinary"}, img::AbstractMatrix{T}, mapf) where {T<:Color}
-    h, w = size(img)
+    axh, axw = axes(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
         error("element type $Tout (from $T) not supported")
     end
-    write(s, "$w $h\n$mx\n")
-    for i = 1:h, j = 1:w  # io is stored row-major, color-first
+    write(s, "$(length(axw)) $(length(axh))\n$mx\n")
+    for i = axh, j = axw  # io is stored row-major, color-first
         c = RGB(mapf(img[i,j]))
         write(s, default_swap(round(Tout, mx*red(c))))
         write(s, default_swap(round(Tout, mx*green(c))))
@@ -267,11 +268,12 @@ end
 end
 
 @noinline function save(s::Stream{format"PBMText"}, img::AbstractMatrix{T}, mapf) where {T<:Number}
-    h, w = size(img)
-    write(s, "$w $h\n")
-    linelen = 0
+    axh, axw = axes(img)
+    w = length(axw)
+    write(s, "$(w) $(length(axh))\n")
+    linelen = offset = 0
     maxdigits = 1
-    for i = 1:h, j = 1:w  # s is stored in row-major format
+    for i = axh, j = axw  # s is stored in row-major format
         if linelen + maxdigits + 1 > 70
             write(s, "\n")
             linelen = 0
@@ -281,7 +283,8 @@ end
         end
         write(s, Bool(mapf(round(img[i,j]))) ? "1" : "0")
         linelen += maxdigits
-        if j == w
+        offset += 1
+        if offset == w
             write(s, "\n")
             linelen = 0
         end
@@ -290,15 +293,16 @@ end
 end
 
 @noinline function save(s::Stream{format"PGMText"}, img::AbstractMatrix{T}, mapf) where {T<:Union{Gray,Number}}
-    h, w = size(img)
+    axh, axw = axes(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
         error("element type $Tout (from $T) not supported")
     end
-    write(s, "$w $h\n$mx\n")
-    linelen = 0
+    w = length(axw)
+    write(s, "$(w) $(length(axh))\n$mx\n")
+    linelen = offset = 0
     maxdigits = round(Int, log10(mx + 1), RoundUp)
-    for i = 1:h, j = 1:w  # s is stored in row-major format
+    for i = axh, j = axw  # s is stored in row-major format
         value = round(Tout, mx*gray(mapf(img[i,j])))
         if linelen + maxdigits + 1 > 70
             write(s, "\n")
@@ -309,7 +313,8 @@ end
         end
         write(s, lpad("$(Int(value))", maxdigits))
         linelen += maxdigits
-        if j == w
+        offset += 1
+        if offset == w
             write(s, "\n")
             linelen = 0
         end
@@ -318,15 +323,16 @@ end
 end
 
 @noinline function save(s::Stream{format"PPMText"}, img::AbstractMatrix{T}, mapf) where {T<:Color}
-    h, w = size(img)
+    axh, axw = axes(img)
     Tout, mx = pnmmax(img)
     if sizeof(Tout) > 2
         error("element type $Tout (from $T) not supported")
     end
-    write(s, "$w $h\n$mx\n")
-    linelen = 0
+    w = length(axw)
+    write(s, "$(w) $(length(axh))\n$mx\n")
+    linelen = offset = 0
     maxdigits = round(Int, log10(mx + 1), RoundUp)
-    for i = 1:h, j = 1:w  # io is stored row-major, color-first
+    for i = axh, j = axw  # io is stored row-major, color-first
         c = RGB(mapf(img[i,j]))
         r,g,b = round.(Tout, mx.*(red(c),green(c),blue(c)))
         if linelen + 3*maxdigits + 1 > 70
@@ -338,7 +344,8 @@ end
         end
         write(s, string(lpad("$(Int(r))", maxdigits), ' ', lpad("$(Int(g))", maxdigits), ' ', lpad("$(Int(b))", maxdigits)))
         linelen += 2+3*maxdigits
-        if j == w
+        offset += 1
+        if offset == w
             write(s, "\n")
             linelen = 0
         end
