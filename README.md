@@ -1,6 +1,6 @@
 # Netpbm
 
-[![Build Status](https://travis-ci.org/JuliaIO/Netpbm.jl.svg?branch=master)](https://travis-ci.org/JuliaIO/Netpbm.jl)
+[![Build status](https://github.com/JuliaIO/Netpbm.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/JuliaIO/Netpbm.jl/actions/workflows/CI.yml)
 
 This package implements the
 [FileIO](https://github.com/JuliaIO/FileIO.jl) interface for loading
