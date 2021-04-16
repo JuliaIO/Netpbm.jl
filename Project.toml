@@ -1,6 +1,6 @@
 name = "Netpbm"
 uuid = "f09324ee-3d7c-5217-9330-fc30815ba969"
-version = "1.0.0"
+version = "1.0.1"
 
 [deps]
 ColorVectorSpace = "c3611d14-8923-5661-9e6a-0046d554d3a4"
