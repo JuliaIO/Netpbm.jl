@@ -8,7 +8,7 @@ FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 ImageCore = "a09fc81d-aa75-5fe9-8630-4744c3626534"
 
 [compat]
-ColorVectorSpace = "0.8"
+ColorVectorSpace = "0.8, 0.9"
 FileIO = "1"
 ImageCore = "0.8.1"
 julia = "1"
