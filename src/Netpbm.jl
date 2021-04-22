@@ -1,6 +1,6 @@
 module Netpbm
 
-using FileIO, ColorVectorSpace, ImageCore
+using FileIO, ImageCore
 
 # Note: there is no endian standard, but netpbm is big-endian
 const is_little_endian = ENDIAN_BOM == 0x04030201
