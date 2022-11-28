@@ -156,62 +156,68 @@ end
     dat
 end
 
-function save(filename::File{format"PBMBinary"}, img; mapf=identity, mapi=nothing, comment=nothing)
+function save(filename::File{format"PBMBinary"}, img; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    comment = _read_metadata(img)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P4\n")
-        write(io, comment === nothing ? "# pbm file written by Julia" : comment, "\n")
+        write(io, isnothing(comment) ? "# pbm file written by Julia" : comment, "\n")
         save(s, img, mapf=mapf)
     end
 end
 
-function save(filename::File{format"PGMBinary"}, img; mapf=identity, mapi=nothing, comment=nothing)
+function save(filename::File{format"PGMBinary"}, img; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    comment = _read_metadata(img)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P5\n")
-        write(io, comment === nothing ? "# pgm file written by Julia" : comment, "\n")
+        write(io, isnothing(comment) ? "# pgm file written by Julia" : comment, "\n")
         save(s, img, mapf=mapf)
     end
 end
 
-function save(filename::File{format"PPMBinary"}, img; mapf=identity, mapi=nothing, comment=nothing)
+function save(filename::File{format"PPMBinary"}, img; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    comment = _read_metadata(img)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P6\n")
-        write(io, comment === nothing ? "# ppm file written by Julia" : comment, "\n")
+        write(io, isnothing(comment) ? "# ppm file written by Julia" : comment, "\n")
         save(s, img, mapf=mapf)
     end
 end
 
-function save(filename::File{format"PBMText"}, img; mapf=identity, mapi=nothing, comment=nothing)
+function save(filename::File{format"PBMText"}, img; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    comment = _read_metadata(img)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P1\n")
-        write(io, comment === nothing ? "# pbm file written by Julia" : comment, "\n")
+        write(io, isnothing(comment) ? "# pbm file written by Julia" : comment, "\n")
         save(s, img, mapf=mapf)
     end
 end
 
-function save(filename::File{format"PGMText"}, img; mapf=identity, mapi=nothing, comment=nothing)
+function save(filename::File{format"PGMText"}, img; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    comment = _read_metadata(img)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P2\n")
-        write(io, comment === nothing ? "# pbm file written by Julia" : comment, "\n")
+        write(io, isnothing(comment) ? "# pbm file written by Julia" : comment, "\n")
         save(s, img, mapf=mapf)
     end
 end
 
-function save(filename::File{format"PPMText"}, img; mapf=identity, mapi=nothing, comment=nothing)
+function save(filename::File{format"PPMText"}, img; mapf=identity, mapi=nothing)
     mapf = kwrename(:mapf, mapf, :mapi, mapi, :save)
+    comment = _read_metadata(img)
     open(filename, "w") do s
         io = stream(s)
         write(io, "P3\n")
-        write(io, comment === nothing ? "# ppm file written by Julia" : comment, "\n")
+        write(io, isnothing(comment) ? "# ppm file written by Julia" : comment, "\n")
         save(s, img, mapf=mapf)
     end
 end
@@ -405,43 +411,16 @@ function kwrename(newname, newval, oldname, oldval, caller::Symbol)
     newval
 end
 
-function _read_metadata_string(img::ImageMeta)
+_read_metadata(img::AbstractArray) = nothing
+
+function _read_metadata(img::ImageMeta)
+    isempty(properties(img)) && return nothing
     buf = IOBuffer()
     for (i, (k, v)) in enumerate(properties(img))
         i > 1 && write(buf, '\n')
         print(buf, "# ", k, ": ", v)
     end
     return String(take!(buf))
-end
-
-function save(filename::File{format"PBMBinary"}, img::ImageMeta; mapf=identity, mapi=nothing)
-    metadata = isempty(properties(img)) ? nothing : _read_metadata_string(img)
-    save(filename, arraydata(img); mapf=mapf, mapi=mapi, comment=metadata)
-end
-
-function save(filename::File{format"PGMBinary"}, img::ImageMeta; mapf=identity, mapi=nothing)
-    metadata = isempty(properties(img)) ? nothing : _read_metadata_string(img)
-    save(filename, arraydata(img); mapf=mapf, mapi=mapi, comment=metadata)
-end
-
-function save(filename::File{format"PPMBinary"}, img::ImageMeta; mapf=identity, mapi=nothing)
-    metadata = isempty(properties(img)) ? nothing : _read_metadata_string(img)
-    save(filename, arraydata(img); mapf=mapf, mapi=mapi, comment=metadata)
-end
-
-function save(filename::File{format"PBMText"}, img::ImageMeta; mapf=identity, mapi=nothing)
-    metadata = isempty(properties(img)) ? nothing : _read_metadata_string(img)
-    save(filename, arraydata(img); mapf=mapf, mapi=mapi, comment=metadata)
-end
-
-function save(filename::File{format"PGMText"}, img::ImageMeta; mapf=identity, mapi=nothing)
-    metadata = isempty(properties(img)) ? nothing : _read_metadata_string(img)
-    save(filename, arraydata(img); mapf=mapf, mapi=mapi, comment=metadata)
-end
-
-function save(filename::File{format"PPMText"}, img::ImageMeta; mapf=identity, mapi=nothing)
-    metadata = isempty(properties(img)) ? nothing : _read_metadata_string(img)
-    save(filename, arraydata(img); mapf=mapf, mapi=mapi, comment=metadata)
 end
 
 end # module
