@@ -11,3 +11,7 @@ packages, such as
 such formats. One advantage of this package is that it does not have
 any binary (e.g., external library) dependencies---it is implemented
 in pure Julia.
+
+The package accepts [Metadata](https://github.com/JuliaImages/ImageMetadata.jl)
+types to save, saving image metadata as
+[Netpbm](https://en.wikipedia.org/wiki/Netpbm_format) comments.

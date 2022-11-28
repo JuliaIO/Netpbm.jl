@@ -6,6 +6,10 @@ using FileIO, ImageCore, ImageMetadata
 const is_little_endian = ENDIAN_BOM == 0x04030201
 const ufixedtype = Dict(10=>N6f10, 12=>N4f12, 14=>N2f14, 16=>N0f16)
 
+if VERSION < v"1.1"
+    isnothing(x) = x === nothing
+end
+
 function load(f::Union{File{format"PBMBinary"},File{format"PGMBinary"},File{format"PPMBinary"}})
     open(f) do s
         skipmagic(s)
