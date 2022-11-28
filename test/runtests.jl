@@ -1,4 +1,4 @@
-using Netpbm, IndirectArrays, ImageCore, FileIO, OffsetArrays
+using Netpbm, IndirectArrays, ImageCore, FileIO, OffsetArrays, ImageMetadata
 using Test
 
 @testset "IO" begin
@@ -6,14 +6,29 @@ using Test
     isdir(workdir) && rm(workdir, recursive=true)
     mkdir(workdir)
 
+    function compare_metadata(fn, meta)
+        info = readlines(filename(fn))
+        expect = sort!(["# $k: $v" for (k, v) in properties(meta)])
+        actual = sort(view(info, 2:(1+length(properties(meta)))))
+        @test expect == actual
+    end
+
     @testset "Bicolor pbm" begin
         # 20 columns = 2.5 bytes
         af = rand(0:1, 3, 20)
         for fmt in (format"PBMBinary", format"PBMText")
             for T in (Bool, Int)
+                # test save/load without metadata
                 ac = convert(Array{T}, af)
                 fn = File{fmt}(joinpath(workdir, "20by3.pbm"))
                 Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == ac
+
+                # test save with metadata, test metadata content, and correct loading
+                meta = ImageMeta(ac, author = "anonymous", time = "now", comment = "something interesting")
+                Netpbm.save(fn, meta)
+                compare_metadata(fn, meta)
                 b = Netpbm.load(fn)
                 @test b == ac
             end
@@ -25,9 +40,17 @@ using Test
         for fmt in (format"PGMBinary", format"PGMText")
             for T in (N0f8, N4f12, N0f16,
                       Gray{N0f8}, Gray{N4f12}, Gray{N0f16})
+                # test save/load without metadata
                 ac = convert(Array{T}, af)
                 fn = File{fmt}(joinpath(workdir, "3by2.pgm"))
                 Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == ac
+
+                # test save with metadata, test metadata content, and correct loading
+                meta = ImageMeta(ac, author = "anonymous", time = "now", comment = "something interesting")
+                Netpbm.save(fn, meta)
+                compare_metadata(fn, meta)
                 b = Netpbm.load(fn)
                 @test b == ac
             end
@@ -35,9 +58,17 @@ using Test
         a8 = convert(Array{N0f8}, af)
         for fmt in (format"PGMBinary", format"PGMText")
             for T in (Float32, Float64, Gray{Float32}, Gray{Float64})
+                # test save/load without metadata
                 ac = convert(Array{T}, af)
                 fn = File{fmt}(joinpath(workdir, "3by2.pgm"))
                 Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == a8
+
+                # test save with metadata, test metadata content, and correct loading
+                meta = ImageMeta(ac, author = "anonymous", time = "now", comment = "something interesting")
+                Netpbm.save(fn, meta)
+                compare_metadata(fn, meta)
                 b = Netpbm.load(fn)
                 @test b == a8
             end
@@ -51,9 +82,17 @@ using Test
         af = rand(RGB{Float64}, 2, 3)
         for fmt in (format"PPMBinary", format"PPMText")
             for T in (RGB{N0f8}, RGB{N4f12}, RGB{N0f16})
+                # test save/load without metadata
                 ac = convert(Array{T}, af)
                 fn = File{fmt}(joinpath(workdir, "3by2.ppm"))
                 Netpbm.save(fn, ac)
+                b = Netpbm.load(fn)
+                @test b == ac
+
+                # test save with metadata, test metadata content, and correct loading
+                meta = ImageMeta(ac, author = "anonymous", time = "now", comment = "something interesting")
+                Netpbm.save(fn, meta)
+                compare_metadata(fn, meta)
                 b = Netpbm.load(fn)
                 @test b == ac
             end
@@ -61,12 +100,20 @@ using Test
         a8 = convert(Array{RGB{N0f8}}, af)
         for fmt in (format"PPMBinary", format"PPMText")
             for T in (RGB{Float32}, RGB{Float64}, HSV{Float64})
+                # test save/load without metadata
                 ac = convert(Array{T}, af)
                 fn = File{fmt}(joinpath(workdir, "3by2.ppm"))
                 Netpbm.save(fn, ac)
                 b = Netpbm.load(fn)
                 @test b == a8
-            end
+
+                # test save with metadata, test metadata content, and correct loading
+                meta = ImageMeta(ac, author = "anonymous", time = "now", comment = "something interesting")
+                Netpbm.save(fn, meta)
+                compare_metadata(fn, meta)
+                b = Netpbm.load(fn)
+                @test b == a8
+           end
         end
     end
 
