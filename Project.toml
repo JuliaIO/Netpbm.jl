@@ -1,6 +1,6 @@
 name = "Netpbm"
 uuid = "f09324ee-3d7c-5217-9330-fc30815ba969"
-version = "1.1.0"
+version = "1.1.1"
 
 [deps]
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
@@ -9,7 +9,7 @@ ImageMetadata = "bc367c6b-8a6b-528e-b4bd-a4b897500b49"
 
 [compat]
 FileIO = "1"
-ImageCore = "0.9"
+ImageCore = "0.9, 0.10"
 ImageMetadata = "0.9"
 julia = "1"
 
